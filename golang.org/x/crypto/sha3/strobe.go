@@ -218,14 +218,14 @@ func InitStrobe(customization_string string) (s strobe) {
   */
   s.I0 = i_none
   s.initialized = false
-  domain := []byte{1, strobe_R, 1, 0, 1, 12*8}
+  domain := []byte{1, strobe_R, 1, 0, 1, 12*8} // R deviates from the spec
   domain = append(domain, []byte("STROBEv1.0.2")...)
 
   // init duplex construction
   s.buf = s.storage[:0]
 
   // run the permutation
-  s._duplex(domain, false, false, true)
+  s.duplex(domain, false, false, true)
   s.initialized = true
 
   // run the customization string in META mode
@@ -235,8 +235,8 @@ func InitStrobe(customization_string string) (s strobe) {
   return
 }
 
-// _runF: applies the STROBE's + cSHAKE's padding and the Keccak permutation
-func (s *strobe) _runF() {
+// runF: applies the STROBE's + cSHAKE's padding and the Keccak permutation
+func (s *strobe) runF() {
   /*
     we do not run this padding during Strobe's initialization.
     This allow us to respect cSHAKE's specification.
@@ -265,12 +265,12 @@ func (s *strobe) _runF() {
 }
 
 
-// _duplex: the duplex call
+// duplex: the duplex call
 /*
   We currently do not return anything (no number of bytes processed, 
   no errors). TODO: think deeply about this :)
 */
-func (s *strobe) _duplex(data []byte, cbefore, cafter, forceF bool) {
+func (s *strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 
   // loop until all data has been processed
   for len(data) > 0 {
@@ -302,7 +302,7 @@ func (s *strobe) _duplex(data []byte, cbefore, cafter, forceF bool) {
       data = data[strobe_R:]
 
       // we filled the buffer -> apply padding + permutation
-      s._runF()
+      s.runF()
 
     } else {
       /*
@@ -340,7 +340,7 @@ func (s *strobe) _duplex(data []byte, cbefore, cafter, forceF bool) {
       // If the sponge is full, time to XOR + padd + permutate.
       if len(s.buf) == strobe_R {
         xorState(&s.a, s.buf)
-        s._runF()
+        s.runF()
       }
     }
   }
@@ -358,7 +358,7 @@ func (s *strobe) _duplex(data []byte, cbefore, cafter, forceF bool) {
     // xor
     xorState(&s.a, s.buf)
     // and pad+permute!
-    s._runF()
+    s.runF()
   }
 
   return
@@ -417,7 +417,7 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
     }
   } else {
     // start the operation
-    s._beginOp(flags)
+    s.beginOp(flags)
     // remember operation in case of streaming (via `more`)
     s.cur_flags  = flags
   }
@@ -475,7 +475,7 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
   // Apply the duplex call
   //
 
-  s._duplex(data, cbefore, cafter, forceF)
+  s.duplex(data, cbefore, cafter, forceF)
 
   //
   // Operation post-duplex
@@ -517,8 +517,8 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
   return nil
 }
 
-// _beginOp: starts an operation
-func (s *strobe) _beginOp(flags flag) {
+// beginOp: starts an operation
+func (s *strobe) beginOp(flags flag) {
 
   // adjust direction information so that sender and receiver agree
   if flags.contains("T") {
@@ -543,5 +543,5 @@ func (s *strobe) _beginOp(flags flag) {
   forceF := flags.contains("C") || flags.contains("K")
 
   // add the information to the state (and maybe permute)
-  s._duplex([]byte{old_begin, byte(flags)}, false, false, forceF)
+  s.duplex([]byte{old_begin, byte(flags)}, false, false, forceF)
 }
