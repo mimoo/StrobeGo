@@ -13,7 +13,6 @@ package sha3
 
 import(
 	"encoding/binary"
-	"fmt"
 	"bytes"
 )
 
@@ -124,28 +123,35 @@ type strobe struct{
 
 type flag uint8
 
-var flagMap = map[rune]uint8{'A':1, 'C':2, 'T':3, 'M':4, 'K':5}
+var flagMap = map[rune]uint8{'I': 0, 'A':1, 'C':2, 'T':3, 'M':4, 'K':5}
 
-func createFlag(letters string) (flag flag) {
-	flag.addFlags(letters)
-	return
+var I flag = 1 << flagMap['I']
+var A flag = 1 << flagMap['A']
+var C flag = 1 << flagMap['C']
+var T flag = 1 << flagMap['T']
+var M flag = 1 << flagMap['M']
+var K flag = 1 << flagMap['K']
+
+var OperationMap = map[string]flag{
+	"AD": A,
+	"KEY": A|C,
+	"PRF": I|A|C,
+	"send_CLR": A|T,
+	"recv_CLR": I|A|T,
+	"send_ENC": A|C|T,
+	"recv_ENC": I|A|C|T,
+	"send_MAC": C|T,
+	"recv_MAC": I|C|T,
+	"RATCHET": C,
+
 }
 
-func (f *flag) addFlags(letters string) {
+func (f *flag) add(letters string) {
 	for _, letter := range letters {
 		offset, ok := flagMap[letter]; if ok {
 			*f ^= 1 << offset
 		}
 	}
-}
-
-func (f *flag) getFlags() (flags string) {
-	for letter, offset := range flagMap {
-		if *f | (1 << offset) == *f {
-			flags += string(letter)
-		}
-	}
-	return flags
 }
 
 func (f *flag) contains(letters string) bool {
@@ -157,38 +163,9 @@ func (f *flag) contains(letters string) bool {
 	return true
 }
 
-func (f *flag) removeFlags(letters string) {
-	for _, letter := range letters {
-		if offset := flagMap[letter]; *f & (1 << offset) == *f {
-			*f ^= 1 << offset
-		}
-	}
-}
-
-func (f *flag) toggleFlags(letters string) {
+func (f *flag) toggle(letters string) {
 	for _, letter := range letters {
 		*f ^= 1 << flagMap[letter]
-	}
-}
-
-func (f *flag) resetFlags() {
-	*f = 0
-}
-
-var OperationMap map[string]flag
-
-func init() {
-	OperationMap = map[string]flag{
-		"AD": createFlag("A"),
-		"KEY": createFlag("AC"),
-		"PRF": createFlag("IAC"),
-		"send_CLR": createFlag("AT"),
-		"recv_CLR": createFlag("IAT"),
-		"send_ENC": createFlag("ACT"),
-		"recv_ENC": createFlag("IACT"),
-		"send_MAC": createFlag("CT"),
-		"recv_MAC": createFlag("ICT"),
-		"RATCHET": createFlag("C"),
 	}
 }
 
@@ -401,7 +378,7 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
 
 	// operation is meta?
 	if meta {
-		flags.addFlags("M")
+		flags.add("M")
 	}
 
 	// does the operation requires a length?
@@ -539,7 +516,7 @@ func (s *strobe) _beginOp(flags flag) {
 		}
 		// if we're the initiator, toggle the I flag.
 		if s.I0 == i_responder {
-			flags.toggleFlags("I")
+			flags.toggle("I")
 		}
 	}
 
