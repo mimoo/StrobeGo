@@ -26,38 +26,47 @@ var Verbose bool
 // Not so necessary High level APIs
 // 
 
-func (s *strobe) KEY(meta bool, key []byte) {
-  s.Operate(meta, "KEY", key, 0, false)
+// inserts a key into the state
+func (s *strobe) KEY(key []byte) {
+  s.Operate(false, "KEY", key, 0, false)
 }
 
-func (s *strobe) PRF(meta bool, output_len int) []byte {
-  return s.Operate(meta, "PRF", []byte{}, output_len, false)
+// provides a hash of length `output_len` of all previous operations
+func (s *strobe) PRF(output_len int) []byte {
+  return s.Operate(false, "PRF", []byte{}, output_len, false)
 }
 
+// `meta` is used for encrypted framing data. 
 func (s *strobe) send_ENC(meta bool, plaintext []byte) []byte {
   return s.Operate(meta, "send_ENC", plaintext, 0, false)
 }
 
+// `meta` is used for decrypting framing data. 
 func (s *strobe) recv_ENC(meta bool, ciphertext []byte) []byte {
   return s.Operate(meta, "recv_ENC", ciphertext, 0, false)
 }
 
+// Additional Data
 func (s *strobe) AD(meta bool, additionalData []byte) {
   s.Operate(meta, "AD", additionalData, 0, false)
 }
 
+// `meta` is used to send framing data
 func (s *strobe) send_CLR(meta bool, cleartext []byte) {
   s.Operate(meta, "send_CLR", cleartext, 0, false)
 }
 
+// `meta` is used to receive framing data
 func (s *strobe) recv_CLR(meta bool, cleartext []byte) {
   s.Operate(meta, "recv_CLR", cleartext, 0, false)
 }
 
+// `meta` is appropriate for checking the integrity of framing data. 
 func (s *strobe) send_MAC(meta bool, output_length int) []byte {
   return s.Operate(meta, "send_MAC", []byte{}, output_length, false)
 }
 
+// `meta` is appropriate for checking the integrity of framing data. 
 func (s *strobe) recv_MAC(meta bool, MAC []byte) bool {
   if s.Operate(meta, "recv_MAC", MAC, 0, false)[0] == 0 {
     return true
@@ -65,8 +74,9 @@ func (s *strobe) recv_MAC(meta bool, MAC []byte) bool {
   return false
 }
 
-func (s *strobe) RATCHET(meta bool, length int) {
-  s.Operate(meta, "RATCHET", []byte{}, length, false)
+// 
+func (s *strobe) RATCHET(length int) {
+  s.Operate(false, "RATCHET", []byte{}, length, false)
 }
 
 //
@@ -415,6 +425,12 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
   //
   // Init
   //
+
+	/*
+    - both `cbefore` and `cafter` imply modification of the data
+    - `forceF` forces a permutation to allow following operations
+      to start on a new block
+  */
 
   cbefore := false
   cafter := false
