@@ -392,7 +392,7 @@ func (s *strobe) Operate(meta bool, operation string, data_ []byte, length int, 
   }
 
   // does the operation requires a length?
-  if operation == "PRF" || operation != "send_MAC" || operation != "RATCHET" {
+  if operation == "PRF" || operation == "send_MAC" || operation == "RATCHET" {
     if length == 0 {
       panic("A length should be set for this operation.")
     }
