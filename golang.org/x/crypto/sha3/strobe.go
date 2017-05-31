@@ -218,7 +218,7 @@ func InitStrobe(customization_string string) (s strobe) {
   */
   s.I0 = i_none
   s.initialized = false
-  domain := []byte{1, strobe_R, 1, 0, 1, 12*8} // R deviates from the spec
+  domain := []byte{1, strobe_R + 2, 1, 0, 1, 12*8}
   domain = append(domain, []byte("STROBEv1.0.2")...)
 
   // init duplex construction
