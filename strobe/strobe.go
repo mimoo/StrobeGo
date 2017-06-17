@@ -128,6 +128,13 @@ type Strobe struct {
 	storage [strobe_rate]byte
 }
 
+func (s *Strobe) Clone() Strobe {
+
+	ret := *s
+	ret.buf = ret.storage[:len(ret.buf)]
+	return ret
+}
+
 //
 // Flags
 //
