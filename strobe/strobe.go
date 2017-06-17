@@ -83,6 +83,9 @@ func (s *Strobe) Send_AEAD(plaintext, ad []byte) (ciphertext []byte) {
 }
 
 func (s *Strobe) Recv_AEAD(ciphertext, ad []byte) (plaintext []byte, ok bool) {
+	if len(ciphertext) < s.macLen {
+		panic("size of AEAD ciphertext is smaller than macLen (def: 16 bytes)")
+	}
 	plaintext = s.Recv_ENC(false, ciphertext[:len(ciphertext)-s.macLen])
 	ok = s.Recv_MAC(false, ciphertext[len(ciphertext)-s.macLen:])
 	return
