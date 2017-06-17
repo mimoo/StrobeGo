@@ -26,10 +26,6 @@ var Verbose bool
 // Not so necessary High level APIs
 //
 
-const(
-	MacLen = 16
-)
-
 // inserts a key into the state
 func (s *Strobe) KEY(key []byte) {
 	s.operate(false, "KEY", key, 0, false)
@@ -82,13 +78,13 @@ func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
 
 func (s *Strobe) Send_AEAD(plaintext, ad []byte) (ciphertext []byte) {
 	ciphertext = append(ciphertext, s.Send_ENC(false, plaintext)...)
-	ciphertext = append(ciphertext, s.Send_MAC(false, MacLen)...)
+	ciphertext = append(ciphertext, s.Send_MAC(false, s.macLen)...)
 	return
 }
 
 func (s *Strobe) Recv_AEAD(ciphertext, ad []byte) (plaintext []byte, ok bool) {
-	plaintext = s.Recv_ENC(false, ciphertext[:len(ciphertext)-MacLen])
-	ok = s.Recv_MAC(false, ciphertext[len(ciphertext)-MacLen:])
+	plaintext = s.Recv_ENC(false, ciphertext[:len(ciphertext)-s.macLen])
+	ok = s.Recv_MAC(false, ciphertext[len(ciphertext)-s.macLen:])
 	return
 }
 
@@ -143,6 +139,17 @@ type Strobe struct {
 	buf     []byte
 	rate    int
 	storage [strobe_rate]byte
+
+	// API
+	macLen int
+}
+
+func (s *Strobe) GetMacLen() int {
+	return s.macLen
+}
+
+func (s *Strobe) SetMacLen(macLen int) {
+	s.macLen = macLen
 }
 
 func (s *Strobe) Clone() Strobe {
@@ -266,6 +273,9 @@ func InitStrobe(customizationString string) (s Strobe) {
 	// run the customization string in META mode
 	s.operate(true, "AD", []byte(customizationString), 0, false)
 
+	// set macLen for the high level `AEAD` functions
+	s.macLen = 16
+	
 	//
 	return
 }
