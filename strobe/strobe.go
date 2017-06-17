@@ -26,6 +26,10 @@ var Verbose bool
 // Not so necessary High level APIs
 //
 
+const(
+	MacLen = 16
+)
+
 // inserts a key into the state
 func (s *Strobe) KEY(key []byte) {
 	s.operate(false, "KEY", key, 0, false)
@@ -72,6 +76,20 @@ func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
 		return true
 	}
 	return false
+}
+
+
+
+func (s *Strobe) Send_AEAD(plaintext, ad []byte) (ciphertext []byte) {
+	ciphertext = append(ciphertext, s.Send_ENC(false, plaintext)...)
+	ciphertext = append(ciphertext, s.Send_MAC(false, MacLen)...)
+	return
+}
+
+func (s *Strobe) Recv_AEAD(ciphertext, ad []byte) (plaintext []byte, ok bool) {
+	plaintext = s.Recv_ENC(false, ciphertext[:len(ciphertext)-MacLen])
+	ok = s.Recv_MAC(false, ciphertext[len(ciphertext)-MacLen:])
+	return
 }
 
 //
