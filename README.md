@@ -1,28 +1,26 @@
 # StrobeGo
 
-This is readable implementation of [STROBE](https://strobe.sourceforge.io/) in Go.
+This repository contains some work on the [STROBE protocol framework](https://strobe.sourceforge.io/).
 
-It has not been thoroughlytested, nor does it completely respect the specification. [See this blog post for more information](https://www.cryptologie.net/article/398/strobego/).
+* [/strobe](/strobe) contains a readable implementation of Strobe.
+* [/golang.org/x/crypto/sha3](/golang.org/x/crypto/sha3) contains an implementation of [cSHAKE](http://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf).
 
-Note: This repository also includes an implementation of [cSHAKE](http://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf).
+The implementation of Strobe has not been thoroughly tested, nor does it completely respect the specification. [See this blog post for more information](https://www.cryptologie.net/article/398/strobego/). It is here for experimentation purposes.
 
 ## Install
 
 To use it, first get Go's experimental sha3's implementation:
 
 ```
-go get golang.org/x/crypto/sha3
-```
-
-Then copy the files into this package
-
-```
-git clone git@github.com:mimoo/StrobeGo.git 
-cp StrobeGo/golang.org/x/crypto/sha3/*.go $GOPATH/src/golang.org/x/crypto/sha3/
+go get github.com/mimoo/StrobeGo/strobe
 ```
 
 ## Usage
 
-See `test_strobe.go` on how to use the function.
+In your go file:
 
+```go
+import "github.com/mimoo/StrobeGo/strobe"
+```
 
+See [test_strobe.go](/test_strobe.go) on how to use the function.
