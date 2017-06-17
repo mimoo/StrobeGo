@@ -1,23 +1,24 @@
 package main
 
-import(
-	"golang.org/x/crypto/sha3"
-	"fmt"
+import (
 	"bytes"
+	"fmt"
+
+	strobe "./strobe"
 )
 
 // testing a simple hash function
 func test_hash() {
-	s1 := sha3.InitStrobe("davidwonghash")
-	s2 := sha3.InitStrobe("davidwonghash")
+	s1 := strobe.InitStrobe("davidwonghash")
+	s2 := strobe.InitStrobe("davidwonghash")
 
 	message := []byte("message to be hashed")
 
-	s1.Operate(false, "AD", message, 0, false)
-	s2.Operate(false, "AD", message, 0, false)
+	s1.AD(false, message)
+	s2.AD(false, message)
 
-	hash1 := s1.Operate(false, "PRF", []byte{}, 32, false)
-	hash2 := s2.Operate(false, "PRF", []byte{}, 32, false)
+	hash1 := s1.PRF(32)
+	hash2 := s2.PRF(32)
 
 	if bytes.Equal(hash1, hash2) {
 		fmt.Println("hashes are equal :)")
@@ -31,43 +32,43 @@ func test_hash() {
 }
 
 // testing an encryption/decryption protocol
-func test_enc_dec(){
-	
+func test_enc_dec() {
+
 	fmt.Println("==ENCRYPTION PROTOCOL TEST==")
 
 	// init
-	s_client := sha3.InitStrobe("davidwongencryption")
-	s_server := sha3.InitStrobe("davidwongencryption")
+	s_client := strobe.InitStrobe("davidwongencryption")
+	s_server := strobe.InitStrobe("davidwongencryption")
 
 	// keys
-	shared_key := bytes.Repeat([]byte{1}, 134)
-	s_client.Operate(false, "KEY", shared_key, 0, false)
-	s_server.Operate(false, "KEY", shared_key, 0, false)
+	sharedKey := bytes.Repeat([]byte{1}, 134)
+	s_client.KEY(sharedKey)
+	s_server.KEY(sharedKey)
 
 	// encrypt + mac
 	fmt.Println("==CLIENT ENCRYPT==")
 
 	message := []byte("salut")
-	ciphertext := s_client.Operate(false, "send_ENC", message, 0, false)
+	ciphertext := s_client.Send_ENC(false, message)
 	fmt.Println("ciphertext:", ciphertext)
-	mac := s_client.Operate(false, "send_MAC", []byte{}, 32, false)
+	mac := s_client.Send_MAC(false, 32)
 	fmt.Println("mac:", mac)
 
 	// decrypt + mac
-	sha3.Verbose = true
+	strobe.Verbose = true
 	fmt.Println("==SERVER DECRYPT==")
-	
-	plaintext := s_server.Operate(false, "recv_ENC", ciphertext, 0, false)
-	valid := s_server.Operate(false, "recv_MAC", mac, 0, false)
 
-	if valid[0] == 0 {
+	plaintext := s_server.Recv_ENC(false, ciphertext)
+	valid := s_server.Recv_MAC(false, mac)
+
+	if valid {
 		fmt.Println("plaintext:", string(plaintext))
 	} else {
-		fmt.Println("mac invalid")
+		fmt.Println("mac invalid, result:", valid, " plaintext:", string(plaintext))
 	}
 }
 
-func main(){
+func main() {
 	//test_hash()
 	test_enc_dec()
 }
