@@ -14,7 +14,6 @@ package strobe
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 )
 
 //
@@ -539,15 +538,12 @@ func (s *Strobe) operate(meta bool, operation string, data_ []byte, length int, 
 func (s *Strobe) beginOp(flags flag) {
 
 	// adjust direction information so that sender and receiver agree
-	fmt.Println("flag:", flags.toString())
 	if flags.contains("T") {
 		// no direction yet?
 		if s.I0 == i_none {
 			if flags.contains("I") {
-				fmt.Println("setting strobe as responder")
 				s.I0 = i_responder
 			} else {
-				fmt.Println("setting strobe as responder")
 				s.I0 = i_initiator
 			}
 		}
