@@ -3,9 +3,9 @@ package sha3
 // This is a special
 
 import (
-	"io"
 	"bytes"
 	"encoding/binary"
+	"io"
 )
 
 //
@@ -24,8 +24,8 @@ type CShakeHash interface {
 // NewcShake128 creates a new custom cSHAKE128 variable-output-length CShakeHash.
 // Its generic security strength is 128 bits against all attacks if at
 // least 32 bytes of its output are used.
-func NewcShake128(custom []byte) CShakeHash { 
-	cshake := &state{rate: 168, dsbyte: 0x04} 
+func NewcShake128(custom []byte) CShakeHash {
+	cshake := &state{rate: 168, dsbyte: 0x04}
 	cshake.initcShake(custom)
 	return cshake
 }
@@ -60,8 +60,8 @@ func (cshake *state) initcShake(custom []byte) {
 	cShakePad := make([]byte, 0)
 	cShakePad = append(cShakePad, left_encode(uint64(cshake.rate))...)
 	cShakePad = append(cShakePad, left_encode(0)...)
-	cShakePad = append(cShakePad, left_encode(uint64(len(custom) * 8))...)
-	cShakePad = append(cShakePad, custom...)	
+	cShakePad = append(cShakePad, left_encode(uint64(len(custom)*8))...)
+	cShakePad = append(cShakePad, custom...)
 	padding_len := cshake.rate - (len(cShakePad) % cshake.rate)
 	cShakePad = append(cShakePad, bytes.Repeat([]byte{0}, padding_len)...)
 	cshake.Write(cShakePad)
@@ -75,12 +75,12 @@ func left_encode(value uint64) []byte {
 		offset = 8
 	} else {
 		binary.BigEndian.PutUint64(input[1:], value)
-		for offset = 0; offset < 9; offset ++ {
+		for offset = 0; offset < 9; offset++ {
 			if input[offset] != 0 {
 				break
 			}
 		}
 	}
-	input[offset - 1] = byte(9 - offset)
-	return input[offset - 1:]
+	input[offset-1] = byte(9 - offset)
+	return input[offset-1:]
 }
