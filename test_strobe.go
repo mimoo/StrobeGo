@@ -68,7 +68,23 @@ func test_enc_dec() {
 	}
 }
 
+func test_empty_plaintext(){
+	s_client := strobe.InitStrobe("davidwongencryption")
+	s_server := strobe.InitStrobe("davidwongencryption")
+	// keys
+	sharedKey := bytes.Repeat([]byte{1}, 134)
+	s_client.KEY(sharedKey)
+	s_server.KEY(sharedKey)
+
+	ciphertext := s_client.Send_AEAD([]byte{}, []byte{})
+	fmt.Println(ciphertext)
+
+	plaintext, ok := s_server.Recv_AEAD(ciphertext, []byte{})
+	fmt.Println(ok, plaintext)
+}
+
 func main() {
 	//test_hash()
-	test_enc_dec()
+	//test_enc_dec()
+	test_empty_plaintext()
 }

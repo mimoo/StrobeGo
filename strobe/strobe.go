@@ -105,7 +105,7 @@ const (
 	strobe_N    = 200  // b/8 (rate+capacity in bytes)
 	strobe_sec  = 256  // 256-bit of security
 	strobe_rate = 136
-	strobe_R    = 134 // N - (2*sec)/8 - 2
+	Strobe_R    = 134 // N - (2*sec)/8 - 2
 /*
   R (the block size) is the rate minus the strobe padding (1 byte) and
   the cSHAKE padding (1 byte)
@@ -263,7 +263,7 @@ func InitStrobe(customizationString string) (s Strobe) {
 	*/
 	s.I0 = i_none
 	s.initialized = false
-	domain := []byte{1, strobe_R + 2, 1, 0, 1, 12 * 8}
+	domain := []byte{1, Strobe_R + 2, 1, 0, 1, 12 * 8}
 	domain = append(domain, []byte("STROBEv1.0.2")...)
 
 	// init duplex construction
@@ -322,31 +322,31 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 	// loop until all data has been processed
 	for len(data) > 0 {
 
-		if len(s.buf) == 0 && len(data) >= strobe_R {
+		if len(s.buf) == 0 && len(data) >= Strobe_R {
 			/*
 			   This is the fast path; absorb a full "rate" bytes of input
 			   and apply the permutation.
 			*/
 			if cbefore {
-				var b [strobe_R]byte
+				var b [Strobe_R]byte
 				outState(s.a, b[:])
-				for idx := 0; idx < strobe_R; idx++ {
+				for idx := 0; idx < Strobe_R; idx++ {
 					data[idx] ^= b[idx]
 				}
 			}
 
-			xorState(&s.a, data[:strobe_R])
+			xorState(&s.a, data[:Strobe_R])
 
 			if cafter {
-				var b [strobe_R]byte
+				var b [Strobe_R]byte
 				outState(s.a, b[:])
-				for idx := 0; idx < strobe_R; idx++ {
+				for idx := 0; idx < Strobe_R; idx++ {
 					data[idx] = b[idx]
 				}
 			}
 
 			// what's next for the loop
-			data = data[strobe_R:]
+			data = data[Strobe_R:]
 
 			// we filled the buffer -> apply padding + permutation
 			s.runF()
@@ -358,13 +358,13 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			*/
 
 			// how much can we fill?
-			todo := strobe_R - len(s.buf)
+			todo := Strobe_R - len(s.buf)
 			if todo > len(data) { // is it too much?
 				todo = len(data)
 			}
 
 			if cbefore {
-				var b [strobe_R]byte
+				var b [Strobe_R]byte
 				outState(s.a, b[:])
 				for idx, state := range b[len(s.buf) : len(s.buf)+todo] {
 					data[idx] ^= state
@@ -374,7 +374,7 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			s.buf = append(s.buf, data[:todo]...)
 
 			if cafter {
-				var b [strobe_R]byte
+				var b [Strobe_R]byte
 				outState(s.a, b[:])
 				for idx, state := range b[len(s.buf)-todo : len(s.buf)] {
 					data[idx] ^= state // because we actually didn't XOR yet
@@ -385,7 +385,7 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			data = data[todo:]
 
 			// If the sponge is full, time to XOR + padd + permutate.
-			if len(s.buf) == strobe_R {
+			if len(s.buf) == Strobe_R {
 				xorState(&s.a, s.buf)
 				s.runF()
 			}
