@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	strobe "./strobe"
+	strobe "./readable"
 )
 
 // testing a simple hash function

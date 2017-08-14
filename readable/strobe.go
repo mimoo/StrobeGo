@@ -74,19 +74,20 @@ func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
 	return false
 }
 
-
-
 func (s *Strobe) Send_AEAD(plaintext, ad []byte) (ciphertext []byte) {
 	ciphertext = append(ciphertext, s.Send_ENC(false, plaintext)...)
+	s.AD(false, ad)
 	ciphertext = append(ciphertext, s.Send_MAC(false, s.macLen)...)
 	return
 }
 
 func (s *Strobe) Recv_AEAD(ciphertext, ad []byte) (plaintext []byte, ok bool) {
 	if len(ciphertext) < s.macLen {
-		panic("size of AEAD ciphertext is smaller than macLen (def: 16 bytes)")
+		ok = false
+		return
 	}
 	plaintext = s.Recv_ENC(false, ciphertext[:len(ciphertext)-s.macLen])
+	s.AD(false, ad)
 	ok = s.Recv_MAC(false, ciphertext[len(ciphertext)-s.macLen:])
 	return
 }
@@ -119,9 +120,9 @@ const (
 type role uint8 // for strobe.I0
 
 const (
-	i_none      role = 2 // starting value
-	i_initiator role = 0 // set if we send the first transport message
-	i_responder role = 1 // set if we receive the first transport message
+	i_initiator role = iota // set if we send the first transport message
+	i_responder             // set if we receive the first transport message
+	i_none                  // starting value
 )
 
 /*
@@ -161,6 +162,28 @@ func (s *Strobe) Clone() Strobe {
 	ret.buf = ret.storage[:len(ret.buf)]
 	return ret
 }
+
+/*
+func (s *Strobe) Reset() {
+	initialized = false
+	posBegin    = 0
+	I0          = i_none
+
+	// streaming API
+	cur_flags = 0
+
+		// Zero the permutation's state.
+		for i := range s.a {
+			s.a[i] = 0
+		}
+	s.state = spongeAbsorbing
+	for i := range s.storage {
+	s.storage[i] = 0
+	}
+		s.buf = s.storage[:0]
+
+}
+*/
 
 //
 // Flags
@@ -278,7 +301,7 @@ func InitStrobe(customizationString string) (s Strobe) {
 
 	// set macLen for the high level `AEAD` functions
 	s.macLen = 16
-	
+
 	//
 	return
 }
