@@ -147,11 +147,11 @@ type Strobe struct {
 }
 
 // Clone allows you to clone a Strobe state.
-func (s *Strobe) Clone() Strobe {
+func (s Strobe) Clone() *Strobe {
 
-	ret := *s
+	ret := s
 	ret.buf = ret.storage[:len(ret.buf)]
-	return ret
+	return &ret
 }
 
 //

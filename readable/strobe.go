@@ -157,7 +157,6 @@ func (s *Strobe) SetMacLen(macLen int) {
 }
 
 func (s *Strobe) Clone() Strobe {
-
 	ret := *s
 	ret.buf = ret.storage[:len(ret.buf)]
 	return ret
