@@ -15,7 +15,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 )
 
 const (
@@ -139,10 +138,11 @@ type Strobe struct {
 	curFlags flag
 
 	// duplex construction (see sha3.go)
-	a       [25]uint64
-	buf     []byte
-	rate    int
-	storage []byte
+	a            [25]uint64
+	buf          []byte
+	rate         int
+	storage      []byte
+	tempStateBuf []byte // used for duplex
 }
 
 // Clone allows you to clone a Strobe state.
@@ -211,28 +211,27 @@ func outState(state [25]uint64, b []byte) {
 // wait for the buffer to fill) we need a function
 // to properly print the state even when the state
 // is in this "temporary" state.
-func debugPrintState(_state [25]uint64, lenBuf int, _storage []byte) {
+func (s Strobe) debugPrintState() string {
 	// copy _storage into buf
 	var buf [1600 / 8]byte
-	copy(buf[:lenBuf], _storage[:lenBuf])
+	copy(buf[:len(s.buf)], s.storage[:len(s.buf)])
 	// copy _state into state
 	var state [25]uint64
-	copy(state[:], _state[:])
+	copy(state[:], s.a[:])
 	// xor
 	xorState(&state, buf[:])
 	// print
 	outState(state, buf[:])
-	fmt.Println(hex.EncodeToString(buf[:]))
+	return hex.EncodeToString(buf[:])
 }
 
 //
 // Core functions
 //
 
-// InitStrobe allows you to initialize a new strobe instance.
+// InitStrobe allows you to initialize a new strobe instance with a customization string (that can be empty) and a security target (either 128 or 256).
 func InitStrobe(customizationString string, security int) (s Strobe) {
-	fmt.Println("Initializing Strobe")
-	// security and rate
+	// compute security and rate
 	if security != 128 && security != 256 {
 		panic("strobe: security must be set to either 128 or 256")
 	}
@@ -240,26 +239,24 @@ func InitStrobe(customizationString string, security int) (s Strobe) {
 	s.StrobeR = s.duplexRate - 2
 	// init vars
 	s.storage = make([]byte, s.duplexRate)
+	s.tempStateBuf = make([]byte, s.StrobeR)
 	s.I0 = iNone
 	s.initialized = false
-	// domain
+	// absorb domain + initialize + absorb custom string
 	domain := []byte{1, byte(s.StrobeR + 2), 1, 0, 1, 12 * 8}
 	domain = append(domain, []byte("STROBEv1.0.2")...)
-	fmt.Println("domain:", hex.EncodeToString(domain))
 	s.buf = s.storage[:0]
 	s.duplex(domain, false, false, true)
 	s.initialized = true
-	proto := []byte(customizationString)
-	fmt.Println("proto:", hex.EncodeToString(proto))
-	s.operate(true, "AD", proto, 0, false)
+	s.operate(true, "AD", []byte(customizationString), 0, false)
 
 	return
 }
 
 // runF: applies the STROBE's + cSHAKE's padding and the Keccak permutation
 func (s *Strobe) runF() {
-	fmt.Println("runF")
 	if s.initialized {
+		// if we're initialize we apply the strobe padding
 		if len(s.buf) > s.StrobeR {
 			panic("strobe: buffer is never supposed to reach strobeR")
 		}
@@ -273,6 +270,7 @@ func (s *Strobe) runF() {
 		s.buf[s.duplexRate-1] ^= 0x80
 		xorState(&s.a, s.buf)
 	} else {
+		// otherwise we just pad with 0s for xorState to work
 		zerosStart := len(s.buf)
 		s.buf = s.storage[:s.duplexRate]
 		for i := zerosStart; i < s.duplexRate; i++ {
@@ -280,45 +278,38 @@ func (s *Strobe) runF() {
 		}
 		xorState(&s.a, s.buf)
 	}
+
+	// run the permutation
 	keccakF1600(&s.a, 24)
 
+	// reset the buffer and set posBegin to 0
+	// (meaning that the current operation started on a previous block)
 	s.buf = s.storage[:0]
 	s.posBegin = 0
 }
 
 // duplex: the duplex call
 func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
-	fmt.Print("duplex()")
-	var stateBuf []byte
-	if cbefore || cafter {
-		stateBuf = make([]byte, s.StrobeR)
-	}
-	if cbefore {
-		fmt.Print(" with cbefore")
-	} else if cafter {
-		fmt.Print(" with cafter")
-	}
-	if forceF {
-		fmt.Print(" with forceF")
-	}
-	fmt.Println()
+	// allocate stateBuf once if we need it
 
+	// process data block by block
 	for len(data) > 0 {
-
 		if len(s.buf) == 0 && len(data) >= s.StrobeR {
+			// This is the fast path; absorb a full "rate" bytes of input
+			// and apply the permutation.
 			if cbefore {
-				outState(s.a, stateBuf[:])
+				outState(s.a, s.tempStateBuf[:])
 				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] ^= stateBuf[idx]
+					data[idx] ^= s.tempStateBuf[idx]
 				}
 			}
 
 			xorState(&s.a, data[:s.StrobeR])
 
 			if cafter {
-				outState(s.a, stateBuf[:])
+				outState(s.a, s.tempStateBuf[:])
 				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] = stateBuf[idx]
+					data[idx] = s.tempStateBuf[idx]
 				}
 			}
 
@@ -327,15 +318,16 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			s.runF()
 
 		} else {
-
+			// This is the slow path; buffer the input until we can fill
+			// the sponge, and then xor it in.
 			todo := s.StrobeR - len(s.buf)
-			if todo > len(data) { // is it too much?
+			if todo > len(data) {
 				todo = len(data)
 			}
 
 			if cbefore {
-				outState(s.a, stateBuf[:])
-				for idx, state := range stateBuf[len(s.buf) : len(s.buf)+todo] {
+				outState(s.a, s.tempStateBuf[:])
+				for idx, state := range s.tempStateBuf[len(s.buf) : len(s.buf)+todo] {
 					data[idx] ^= state
 				}
 			}
@@ -343,14 +335,16 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			s.buf = append(s.buf, data[:todo]...)
 
 			if cafter {
-				outState(s.a, stateBuf[:])
-				for idx, state := range stateBuf[len(s.buf)-todo : len(s.buf)] {
+				outState(s.a, s.tempStateBuf[:])
+				for idx, state := range s.tempStateBuf[len(s.buf)-todo : len(s.buf)] {
 					data[idx] ^= state
 				}
 			}
 
+			// what's next for the loop?
 			data = data[todo:]
 
+			// If the sponge is full, time to XOR + padd + permutate.
 			if len(s.buf) == s.StrobeR {
 				xorState(&s.a, s.buf)
 				s.runF()
@@ -358,31 +352,21 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 		}
 	}
 
+	// sometimes we the next operation to start on a new block
 	if forceF && len(s.buf) != 0 {
 		s.runF()
 	}
 
-	// debug
-	fmt.Println("new state")
-	debugPrintState(s.a, len(s.buf), s.storage)
-
 	return
 }
 
-// Operate: runs an operation (see OperationMap for a list of operations)
-/*
-  For operations that only require a length, provide the length via the
-  length argument with an empty slice []byte{}. For other operations provide
-  a zero length.
-  Result is always retrieved through the return value. For boolean results,
-  check that the first index is 0 for true, 1 for false.
-*/
+// operate runs an operation (see OperationMap for a list of operations).
+// For operations that only require a length, provide the length via the
+// length argument with an empty slice []byte{}. For other operations provide
+// a zero length.
+// Result is always retrieved through the return value. For boolean results,
+// check that the first index is 0 for true, 1 for false.
 func (s *Strobe) operate(meta bool, operation string, dataConst []byte, length int, more bool) []byte {
-	fmt.Println("operate()")
-	//
-	// Operation checks
-	//
-
 	// operation is valid?
 	var flags flag
 	var ok bool
@@ -455,7 +439,6 @@ func (s *Strobe) operate(meta bool, operation string, dataConst []byte, length i
 
 // beginOp: starts an operation
 func (s *Strobe) beginOp(flags flag) {
-	fmt.Println("beginOp() with ", flags)
 
 	if flags&flagT != 0 {
 		if s.I0 == iNone {
