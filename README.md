@@ -1,6 +1,6 @@
 # StrobeGo
 
-[![GoDoc](https://godoc.org/github.com/mimoo/StrobeGo?status.svg)](https://godoc.org/github.com/mimoo/StrobeGo)
+[![GoDoc](https://godoc.org/github.com/mimoo/StrobeGo/strobe?status.svg)](https://godoc.org/github.com/mimoo/StrobeGo/strobe)
 
 This repository contains an implementation of the [Strobe protocol framework](https://strobe.sourceforge.io/). See [this blogpost](https://www.cryptologie.net/article/416/the-strobe-protocol-framework/) for an explanation of what is the framework.
 
@@ -33,14 +33,9 @@ import (
 )
 
 func main() {
-	fmt.Println("=======InitStrobe(\"hello\", 128)========")
-	s := strobe.InitStrobe("hello", 128)
-	fmt.Println("=======s.PRF(16)========")
-	fmt.Println(hex.EncodeToString(s.PRF(16)))
-	fmt.Println("=======s.send_CLR(false, \"hi\")========")
-	s.Send_CLR(false, []byte("hi"))
-	fmt.Println("=======s.send_ENC(false, \"hello\")========")
-	fmt.Println(hex.EncodeToString(s.Send_ENC_unauthenticated(false, []byte("hello"))))
-		fmt.Println("=======s.send_MAC(true, 16)========")
-	fmt.Println(hex.EncodeToString(s.Send_MAC(true, 16)))
+	s := strobe.InitStrobe("myHash", 128) // 128-bit security
+	message := []byte("hello, how are you good sir?")
+	s.AD(false, message) // meta=false
+	fmt.Println(hex.EncodeToString(s.PRF(16))) // output length = 16
 }
+```
