@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	// The size of the authentication tag used in AEAD functions
 	MACLEN = 16
 )
 
@@ -82,12 +83,12 @@ func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
 }
 
 // RATCHET allows you to introduce forward secrecy in a protocol.
-// It is similar to AES-GCM.
 func (s *Strobe) RATCHET(length int) {
 	s.operate(false, "RATCHET", []byte{}, length, false)
 }
 
 // Send_AEAD allows you to encrypt data and authenticate additional data
+// It is similar to AES-GCM.
 func (s *Strobe) Send_AEAD(plaintext, ad []byte) (ciphertext []byte) {
 	ciphertext = append(ciphertext, s.Send_ENC_unauthenticated(false, plaintext)...)
 	s.AD(false, ad)
@@ -288,6 +289,10 @@ func (s *Strobe) runF() {
 // duplex: the duplex call
 func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 	fmt.Print("duplex()")
+	var stateBuf []byte
+	if cbefore || cafter {
+		stateBuf = make([]byte, s.StrobeR)
+	}
 	if cbefore {
 		fmt.Print(" with cbefore")
 	} else if cafter {
@@ -302,20 +307,18 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 
 		if len(s.buf) == 0 && len(data) >= s.StrobeR {
 			if cbefore {
-				b := make([]byte, s.StrobeR)
-				outState(s.a, b[:])
+				outState(s.a, stateBuf[:])
 				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] ^= b[idx]
+					data[idx] ^= stateBuf[idx]
 				}
 			}
 
 			xorState(&s.a, data[:s.StrobeR])
 
 			if cafter {
-				b := make([]byte, s.StrobeR)
-				outState(s.a, b[:])
+				outState(s.a, stateBuf[:])
 				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] = b[idx]
+					data[idx] = stateBuf[idx]
 				}
 			}
 
@@ -331,9 +334,8 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			}
 
 			if cbefore {
-				b := make([]byte, s.StrobeR)
-				outState(s.a, b[:])
-				for idx, state := range b[len(s.buf) : len(s.buf)+todo] {
+				outState(s.a, stateBuf[:])
+				for idx, state := range stateBuf[len(s.buf) : len(s.buf)+todo] {
 					data[idx] ^= state
 				}
 			}
@@ -341,9 +343,8 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			s.buf = append(s.buf, data[:todo]...)
 
 			if cafter {
-				b := make([]byte, s.StrobeR)
-				outState(s.a, b[:])
-				for idx, state := range b[len(s.buf)-todo : len(s.buf)] {
+				outState(s.a, stateBuf[:])
+				for idx, state := range stateBuf[len(s.buf)-todo : len(s.buf)] {
 					data[idx] ^= state
 				}
 			}
