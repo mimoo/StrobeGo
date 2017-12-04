@@ -37,3 +37,8 @@ func main() {
 	fmt.Println(hex.EncodeToString(s.PRF(16))) // output length = 16
 }
 ```
+
+## Roadmap
+
+* Implement test vectors of SHAKE
+* Generate proper test vectors and test them with the reference implementation in python of Strobe
