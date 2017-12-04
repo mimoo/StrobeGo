@@ -150,7 +150,9 @@ func (s Strobe) Clone() *Strobe {
 	ret := s
 	// need to recreate some buffers
 	ret.storage = make([]byte, s.duplexRate)
+	copy(ret.storage, s.storage)
 	ret.tempStateBuf = make([]byte, s.StrobeR)
+	copy(ret.tempStateBuf, s.tempStateBuf)
 	// and set pointers
 	ret.buf = ret.storage[:len(ret.buf)]
 	return &ret
