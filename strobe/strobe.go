@@ -25,57 +25,57 @@ const (
 // KEY inserts a key into the state.
 // It also provides forward secrecy.
 func (s *Strobe) KEY(key []byte) {
-	s.operate(false, "KEY", key, 0, false)
+	s.Operate(false, "KEY", key, 0, false)
 }
 
 // PRF provides a hash of length `output_len` of all previous operations
 // It can also be used to generate random numbers, it is forward secure.
 func (s *Strobe) PRF(outputLen int) []byte {
-	return s.operate(false, "PRF", []byte{}, outputLen, false)
+	return s.Operate(false, "PRF", []byte{}, outputLen, false)
 }
 
 // Send_ENC_unauthenticated is used to encrypt some plaintext
 // it should be followed by Send_MAC in order to protect its integrity
 // `meta` is used for encrypted framing data.
 func (s *Strobe) Send_ENC_unauthenticated(meta bool, plaintext []byte) []byte {
-	return s.operate(meta, "send_ENC", plaintext, 0, false)
+	return s.Operate(meta, "send_ENC", plaintext, 0, false)
 }
 
 // Recv_ENC_unauthenticated is used to decrypt some received ciphertext
 // it should be followed by Recv_MAC in order to protect its integrity
 // `meta` is used for decrypting framing data.
 func (s *Strobe) Recv_ENC_unauthenticated(meta bool, ciphertext []byte) []byte {
-	return s.operate(meta, "recv_ENC", ciphertext, 0, false)
+	return s.Operate(meta, "recv_ENC", ciphertext, 0, false)
 }
 
 // AD allows you to authenticate Additional Data
 // it should be followed by a Send_MAC or Recv_MAC in order to truly work
 func (s *Strobe) AD(meta bool, additionalData []byte) {
-	s.operate(meta, "AD", additionalData, 0, false)
+	s.Operate(meta, "AD", additionalData, 0, false)
 }
 
 // Send_CLR allows you to send data in cleartext
 // `meta` is used to send framing data
 func (s *Strobe) Send_CLR(meta bool, cleartext []byte) {
-	s.operate(meta, "send_CLR", cleartext, 0, false)
+	s.Operate(meta, "send_CLR", cleartext, 0, false)
 }
 
 // Recv_CLR allows you to receive data in cleartext.
 // `meta` is used to receive framing data
 func (s *Strobe) Recv_CLR(meta bool, cleartext []byte) {
-	s.operate(meta, "recv_CLR", cleartext, 0, false)
+	s.Operate(meta, "recv_CLR", cleartext, 0, false)
 }
 
 // Send_MAC allows you to produce an authentication tag.
 // `meta` is appropriate for checking the integrity of framing data.
 func (s *Strobe) Send_MAC(meta bool, output_length int) []byte {
-	return s.operate(meta, "send_MAC", []byte{}, output_length, false)
+	return s.Operate(meta, "send_MAC", []byte{}, output_length, false)
 }
 
 // Recv_MAC allows you to verify a received authentication tag.
 // `meta` is appropriate for checking the integrity of framing data.
 func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
-	if s.operate(meta, "recv_MAC", MAC, 0, false)[0] == 0 {
+	if s.Operate(meta, "recv_MAC", MAC, 0, false)[0] == 0 {
 		return true
 	}
 	return false
@@ -83,7 +83,7 @@ func (s *Strobe) Recv_MAC(meta bool, MAC []byte) bool {
 
 // RATCHET allows you to introduce forward secrecy in a protocol.
 func (s *Strobe) RATCHET(length int) {
-	s.operate(false, "RATCHET", []byte{}, length, false)
+	s.Operate(false, "RATCHET", []byte{}, length, false)
 }
 
 // Send_AEAD allows you to encrypt data and authenticate additional data
@@ -147,8 +147,11 @@ type Strobe struct {
 
 // Clone allows you to clone a Strobe state.
 func (s Strobe) Clone() *Strobe {
-
 	ret := s
+	// need to recreate some buffers
+	ret.storage = make([]byte, s.duplexRate)
+	ret.tempStateBuf = make([]byte, s.StrobeR)
+	// and set pointers
 	ret.buf = ret.storage[:len(ret.buf)]
 	return &ret
 }
@@ -248,7 +251,7 @@ func InitStrobe(customizationString string, security int) (s Strobe) {
 	s.buf = s.storage[:0]
 	s.duplex(domain, false, false, true)
 	s.initialized = true
-	s.operate(true, "AD", []byte(customizationString), 0, false)
+	s.Operate(true, "AD", []byte(customizationString), 0, false)
 
 	return
 }
@@ -360,13 +363,13 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 	return
 }
 
-// operate runs an operation (see OperationMap for a list of operations).
+// Operate runs an operation (see OperationMap for a list of operations).
 // For operations that only require a length, provide the length via the
 // length argument with an empty slice []byte{}. For other operations provide
 // a zero length.
 // Result is always retrieved through the return value. For boolean results,
 // check that the first index is 0 for true, 1 for false.
-func (s *Strobe) operate(meta bool, operation string, dataConst []byte, length int, more bool) []byte {
+func (s *Strobe) Operate(meta bool, operation string, dataConst []byte, length int, more bool) []byte {
 	// operation is valid?
 	var flags flag
 	var ok bool
