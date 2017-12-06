@@ -140,7 +140,6 @@ type Strobe struct {
 	// duplex construction (see sha3.go)
 	a            [25]uint64
 	buf          []byte
-	rate         int
 	storage      []byte
 	tempStateBuf []byte // used for duplex
 }
@@ -151,7 +150,7 @@ func (s Strobe) Clone() *Strobe {
 	// need to recreate some buffers
 	ret.storage = make([]byte, s.duplexRate)
 	copy(ret.storage, s.storage)
-	ret.tempStateBuf = make([]byte, s.StrobeR)
+	ret.tempStateBuf = make([]byte, s.duplexRate)
 	copy(ret.tempStateBuf, s.tempStateBuf)
 	// and set pointers
 	ret.buf = ret.storage[:len(ret.buf)]
@@ -190,11 +189,7 @@ var operationMap = map[string]flag{
 // Helper
 //
 
-/*
-   we can't use Golang's sha3's functions here because they are
-   expecting a sponge object. So we use these drop-in replacements:
-*/
-
+// this only works for 8-byte alligned buffers
 func xorState(state *[25]uint64, buf []byte) {
 	n := len(buf) / 8
 	for i := 0; i < n; i++ {
@@ -204,6 +199,7 @@ func xorState(state *[25]uint64, buf []byte) {
 	}
 }
 
+// this only works for 8-byte alligned buffers
 func outState(state [25]uint64, b []byte) {
 	for i := 0; len(b) >= 8; i++ {
 		binary.LittleEndian.PutUint64(b, state[i])
@@ -244,7 +240,7 @@ func InitStrobe(customizationString string, security int) (s Strobe) {
 	s.StrobeR = s.duplexRate - 2
 	// init vars
 	s.storage = make([]byte, s.duplexRate)
-	s.tempStateBuf = make([]byte, s.StrobeR)
+	s.tempStateBuf = make([]byte, s.duplexRate)
 	s.I0 = iNone
 	s.initialized = false
 	// absorb domain + initialize + absorb custom string
@@ -274,7 +270,7 @@ func (s *Strobe) runF() {
 		}
 		s.buf[s.duplexRate-1] ^= 0x80
 		xorState(&s.a, s.buf)
-	} else {
+	} else if len(s.buf) != 0 {
 		// otherwise we just pad with 0s for xorState to work
 		zerosStart := len(s.buf)
 		s.buf = s.storage[:s.duplexRate]
@@ -295,66 +291,39 @@ func (s *Strobe) runF() {
 
 // duplex: the duplex call
 func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
-	// allocate stateBuf once if we need it
 
 	// process data block by block
 	for len(data) > 0 {
-		if len(s.buf) == 0 && len(data) >= s.StrobeR {
-			// This is the fast path; absorb a full "rate" bytes of input
-			// and apply the permutation.
-			if cbefore {
-				outState(s.a, s.tempStateBuf[:])
-				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] ^= s.tempStateBuf[idx]
-				}
-			}
 
-			xorState(&s.a, data[:s.StrobeR])
+		todo := s.StrobeR - len(s.buf)
+		if todo > len(data) {
+			todo = len(data)
+		}
 
-			if cafter {
-				outState(s.a, s.tempStateBuf[:])
-				for idx := 0; idx < s.StrobeR; idx++ {
-					data[idx] = s.tempStateBuf[idx]
-				}
-			}
-
-			data = data[s.StrobeR:]
-
-			s.runF()
-
-		} else {
-			// This is the slow path; buffer the input until we can fill
-			// the sponge, and then xor it in.
-			todo := s.StrobeR - len(s.buf)
-			if todo > len(data) {
-				todo = len(data)
-			}
-
-			if cbefore {
-				outState(s.a, s.tempStateBuf[:])
-				for idx, state := range s.tempStateBuf[len(s.buf) : len(s.buf)+todo] {
-					data[idx] ^= state
-				}
-			}
-
-			s.buf = append(s.buf, data[:todo]...)
-
-			if cafter {
-				outState(s.a, s.tempStateBuf[:])
-				for idx, state := range s.tempStateBuf[len(s.buf)-todo : len(s.buf)] {
-					data[idx] ^= state
-				}
-			}
-
-			// what's next for the loop?
-			data = data[todo:]
-
-			// If the sponge is full, time to XOR + padd + permutate.
-			if len(s.buf) == s.StrobeR {
-				xorState(&s.a, s.buf)
-				s.runF()
+		if cbefore {
+			outState(s.a, s.tempStateBuf)
+			for idx, state := range s.tempStateBuf[len(s.buf) : len(s.buf)+todo] {
+				data[idx] ^= state
 			}
 		}
+
+		s.buf = append(s.buf, data[:todo]...)
+
+		if cafter {
+			outState(s.a, s.tempStateBuf)
+			for idx, state := range s.tempStateBuf[len(s.buf)-todo : len(s.buf)] {
+				data[idx] ^= state
+			}
+		}
+
+		// what's next for the loop?
+		data = data[todo:]
+
+		// If the duplex is full, time to XOR + padd + permutate.
+		if len(s.buf) == s.StrobeR {
+			s.runF()
+		}
+
 	}
 
 	// sometimes we the next operation to start on a new block
