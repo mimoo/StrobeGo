@@ -124,6 +124,7 @@ const (
   We do not use strobe's `pos` variable here since it is easily
   obtainable via `len(buf)`
 */
+// TODO: accept permutations of different sizes
 type Strobe struct {
 	// config
 	duplexRate int // 1600/8 - security/4
@@ -138,10 +139,10 @@ type Strobe struct {
 	curFlags flag
 
 	// duplex construction (see sha3.go)
-	a            [25]uint64
-	buf          []byte
-	storage      []byte
-	tempStateBuf []byte // used for duplex
+	a            [25]uint64 // the actual state
+	buf          []byte     // a pointer into the storage, it also serves as `pos` variable
+	storage      []byte     // to-be-XORed (used for optimizations purposes)
+	tempStateBuf []byte     // utility slice used for temporary duplexing operations
 }
 
 // Clone allows you to clone a Strobe state.
@@ -155,6 +156,97 @@ func (s Strobe) Clone() *Strobe {
 	// and set pointers
 	ret.buf = ret.storage[:len(ret.buf)]
 	return &ret
+}
+
+// SerializeState allows one to serialize the strobe state to later recover it.
+// [security(1)|initialized(1)|I0(1)|curFlags(1)|posBegin(1)|pos(1)|[25]uint64 state]
+func (s Strobe) Serialize() []byte {
+	// serialized data
+	serialized := make([]byte, 6+25*8) // TODO: this is only for keccak-f[1600]
+	// security?
+	security := (1600/8 - s.duplexRate) * 4
+	if security == 128 {
+		serialized[0] = 0
+	} else {
+		serialized[0] = 1
+	}
+	// initialized?
+	if s.initialized {
+		serialized[1] = 1
+	} else {
+		serialized[1] = 0
+	}
+	// I0
+	serialized[2] = byte(s.I0)
+	// curFlags
+	serialized[3] = byte(s.curFlags)
+	// posBegin
+	serialized[4] = byte(s.posBegin)
+	// pos
+	serialized[5] = byte(len(s.buf))
+	// make sure to XOR what's left to XOR in the storage
+	var buf [1600 / 8]byte
+	var state [25]uint64
+	copy(buf[:len(s.buf)], s.storage[:len(s.buf)]) // len(s.buf) = pos
+	copy(state[:], s.a[:])
+	xorState(&state, buf[:])
+	// state
+	var b []byte
+	b = serialized[6:]
+	for i := 0; len(b) >= 8; i++ {
+		binary.LittleEndian.PutUint64(b, state[i])
+		b = b[8:]
+	}
+	//
+	return serialized
+}
+
+// Recover state allows one to re-create a strobe state from a serialized state.
+// [security(1)|initialized(1)|I0(1)|curFlags(1)|posBegin(1)|pos(1)|[25]uint64 state]
+func RecoverState(serialized []byte) (s Strobe) {
+	if len(serialized) != 6+25*8 {
+		panic("strobe: cannot recover state of invalid length")
+	}
+	// security?
+	if serialized[0] > 1 {
+		panic("strobe: cannot recover state with invalid security")
+	}
+	security := 128
+	if security == 1 {
+		security = 256
+	}
+	// init vars from security
+	s.duplexRate = 1600/8 - security/4
+	s.StrobeR = s.duplexRate - 2
+	// need to recreate some buffers
+	s.storage = make([]byte, s.duplexRate)
+	s.tempStateBuf = make([]byte, s.duplexRate)
+	// initialized?
+	if serialized[1] == 1 {
+		s.initialized = true
+	} else {
+		s.initialized = false
+	}
+	// I0?
+	if serialized[2] > 3 {
+		panic("strobe: cannot recover state with invalid role")
+	}
+	s.I0 = role(serialized[2])
+	// curFlags + posBegin
+	s.curFlags = flag(serialized[3])
+	s.posBegin = uint8(serialized[4])
+	// pos
+	pos := int(serialized[5])
+	s.buf = s.storage[:pos]
+	// state
+	serialized = serialized[6:]
+	for i := 0; i < 25; i++ {
+		a := binary.LittleEndian.Uint64(serialized[:8])
+		s.a[i] = a
+		serialized = serialized[8:]
+	}
+	//
+	return
 }
 
 //
@@ -272,7 +364,7 @@ func (s *Strobe) runF() {
 		xorState(&s.a, s.buf)
 	} else if len(s.buf) != 0 {
 		// otherwise we just pad with 0s for xorState to work
-		zerosStart := len(s.buf)
+		zerosStart := len(s.buf) // rate = [0--end_of_buffer/zeroStart---duplexRate]
 		s.buf = s.storage[:s.duplexRate]
 		for i := zerosStart; i < s.duplexRate; i++ {
 			s.buf[i] = 0
@@ -307,6 +399,7 @@ func (s *Strobe) duplex(data []byte, cbefore, cafter, forceF bool) {
 			}
 		}
 
+		// buffer what's to be XOR'ed (we XOR once during runF)
 		s.buf = append(s.buf, data[:todo]...)
 
 		if cafter {
