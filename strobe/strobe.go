@@ -158,7 +158,7 @@ func (s Strobe) Clone() *Strobe {
 	return &ret
 }
 
-// SerializeState allows one to serialize the strobe state to later recover it.
+// Serialize allows one to serialize the strobe state to later recover it.
 // [security(1)|initialized(1)|I0(1)|curFlags(1)|posBegin(1)|pos(1)|[25]uint64 state]
 func (s Strobe) Serialize() []byte {
 	// serialized data
