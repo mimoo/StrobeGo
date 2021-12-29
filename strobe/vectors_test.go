@@ -106,6 +106,8 @@ func simpleTest() (testVector TestVector) {
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("AD", false, message, 0, false))
 	// PRF
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("PRF", false, []byte{}, 16, false))
+	// RATCHET
+	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("RATCHET", false, []byte{}, 32, false))
 	// send_ENC
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_ENC", false, []byte("hi how are you"), 0, false))
 	// recv_ENC
@@ -118,8 +120,6 @@ func simpleTest() (testVector TestVector) {
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_CLR", false, []byte("hi how are you"), 0, false))
 	// recv_CLR
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("recv_CLR", false, []byte("hi how are you"), 0, false))
-	// RATCHET
-	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("RATCHET", false, []byte{}, 32, false))
 	return
 }
 func metaTest() (testVector TestVector) {
@@ -136,6 +136,8 @@ func metaTest() (testVector TestVector) {
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("AD", true, message, 0, false))
 	// PRF
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("PRF", false, []byte{}, 16, false))
+	// RATCHET
+	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("RATCHET", true, []byte{}, 32, false))
 	// send_ENC
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_ENC", true, []byte("hi how are you"), 0, false))
 	// recv_ENC
@@ -148,8 +150,6 @@ func metaTest() (testVector TestVector) {
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_CLR", true, []byte("hi how are you"), 0, false))
 	// recv_CLR
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("recv_CLR", true, []byte("hi how are you"), 0, false))
-	// RATCHET
-	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("RATCHET", true, []byte{}, 32, false))
 	return
 }
 
@@ -168,6 +168,8 @@ func streamingTest() (testVector TestVector) {
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("AD", false, message, 0, false))
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("AD", false, message, 0, true))
 	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("AD", false, message, 0, false))
+	// send_MAC so there's an output vector at the end of this test
+	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_MAC", true, []byte{}, 16, false))
 	return
 }
 
@@ -189,5 +191,7 @@ func boundaryBlocksTest() (testVector TestVector) {
 			testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_ENC", false, inputData, 0, false))
 		}
 	}
+	// send_MAC so there's an output vector at the end of this test
+	testVector.Operations = append(testVector.Operations, s.DebugGoThroughOperation("send_MAC", true, []byte{}, 16, false))
 	return
 }
